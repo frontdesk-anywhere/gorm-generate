@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/frontdesk-anywhere/gorm-generate/gormgen"
+
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
 func parseFlags() *gormgen.Generator {
@@ -38,7 +40,14 @@ func parseFlags() *gormgen.Generator {
 }
 
 func main() {
+	// Enable logging file/line number with each log message.
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	config := parseFlags()
+	if config.DbDsn == "" {
+		flag.Usage()
+		log.Fatal("missing flag -dsn")
+	}
 
 	targets := flag.Args()
 	if len(targets) == 0 {

@@ -1,8 +1,8 @@
 package gormgen
 
 import (
-	"errors"
-	"flag"
+	"bytes"
+	"go/format"
 	"net/url"
 	"os"
 	"path"
@@ -16,10 +16,6 @@ import (
 // Connect creates an open connection to a database via gorm.
 // If an error occurs, the returned connection will be `nil`
 func ConnectToDsn(dsnStr string) (*gorm.DB, error) {
-	if dsnStr == "" {
-		flag.Usage()
-		return nil, errors.New("missing flag -dsn")
-	}
 	dsn, err := url.Parse(dsnStr)
 	if err != nil {
 		return nil, err
@@ -28,12 +24,11 @@ func ConnectToDsn(dsnStr string) (*gorm.DB, error) {
 	// Delete the scheme and rebuild the DSN for GORM.
 	dbScheme := dsn.Scheme
 	dsn.Scheme = ""
-
 	db, err := gorm.Open(dbScheme, strings.TrimPrefix(dsn.String(), "//"))
-
 	if err != nil {
 		return nil, err
 	}
+
 	return db, nil
 }
 
@@ -71,6 +66,17 @@ func (g *Generator) GenerateTemplateWithContext(tmpl string, fileName string, co
 		return err
 	}
 
-	return generatedTemplate.Execute(file, context)
-}
+	var buf bytes.Buffer
+	err = generatedTemplate.Execute(&buf, context)
+	if err != nil {
+		return err
+	}
 
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Write(formatted)
+	return err
+}

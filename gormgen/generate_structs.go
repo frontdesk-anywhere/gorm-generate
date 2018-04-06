@@ -3,6 +3,7 @@ package gormgen
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,22 +25,22 @@ ORDER BY TABLE_NAME, ORDINAL_POSITION
 `
 
 const gormStructsTemplate = `package {{.StructsPackage}}
+
 import ({{range .Imports}}
 	"{{.}}"{{end}}
 )
 {{range $tableName,$tableSchema := .DbSchema}}
 type {{$tableName}} struct { {{range $columnName,$columnSchema := $tableSchema}}
-	{{$columnSchema.GoColumnName}} {{$columnSchema.GoColumnType}} `+"`db:\"{{$columnSchema.DbColumnName}}\"{{$columnSchema.GormTag}}`"+`{{end}}
+	{{$columnSchema.GoColumnName}} {{$columnSchema.GoColumnType}} ` + "`db:\"{{$columnSchema.DbColumnName}}\"{{$columnSchema.GormTag}}`" + `{{end}}
 }
-{{end}}
-`
+{{end}}`
 
 const gormRegistryTemplate = `package {{.StructsPackage}}
+
 // AllModels returns a list of empty GORM DB models available in the db_account_master database.
 func AllModels() []interface{} {
 	return []interface{} { {{range $tableName,$tableSchema := .DbSchema}}
-		&{{$tableName}} { },
-{{end}}
+		&{{$tableName}} { },{{end}}
 	}
 }
 `
@@ -72,7 +73,7 @@ func (g *Generator) CreateTemplateContext(dbSchema map[string]TableSchema) (*Str
 
 			goTableName := formatName(columnSchema.TableName)
 			goColumnName := formatName(columnSchema.ColumnName)
-			colContext := ColumnContext {
+			colContext := ColumnContext{
 				DbColumnName: columnSchema.ColumnName,
 				GoColumnName: goColumnName,
 				GoColumnType: goType,
@@ -86,8 +87,12 @@ func (g *Generator) CreateTemplateContext(dbSchema map[string]TableSchema) (*Str
 			dbContext[goTableName][goColumnName] = &colContext
 		}
 	}
+	absOutputPath, err := filepath.Abs(g.OutputPath)
+	if err != nil {
+		return nil, err
+	}
 	return &StructsContext{
-		StructsPackage: path.Base(g.OutputPath),
+		StructsPackage: path.Base(absOutputPath),
 		Imports:        importMap,
 		DbSchema:       dbContext,
 	}, nil
@@ -107,7 +112,10 @@ func (g *Generator) GenerateGormStructs() error {
 	}
 
 	// Render the templates.
-	return g.GenerateTemplateWithContext(gormStructsTemplate, g.StructsFile, ctx)
+	g.GenerateTemplateWithContext(gormStructsTemplate, g.StructsFile, ctx)
+	if err != nil {
+		return err
+	}
 	return g.GenerateTemplateWithContext(gormRegistryTemplate, g.StructsRegistryFile, ctx)
 }
 
@@ -170,7 +178,7 @@ func gormTag(schema *ColumnSchema) string {
 	if schema.IsNullable == "NO" {
 		tagParts = append(tagParts, "not null")
 	}
-	if strings.Contains(schema.Extra, "auto_increment") {
+	if schema.Extra.Valid && strings.Contains(schema.Extra.String, "auto_increment") {
 		tagParts = append(tagParts, "AUTO_INCREMENT")
 	}
 

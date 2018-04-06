@@ -18,8 +18,8 @@ type ColumnSchema struct {
 	NumericScale           sql.NullInt64
 	ColumnType             string
 	ColumnKey              string
-	Extra                  string
-	ColumnDefault          string
+	Extra                  sql.NullString
+	ColumnDefault          sql.NullString
 }
 
 // ReadDbSchema gathers the info about database structure using information_schema
