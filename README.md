@@ -19,3 +19,10 @@ gorm-generate \
 cat generated_structs.go
 cat generated_structs_registry.go
 ```
+
+To use `gorm-generate` with `go generate`, add the following to the top of a go file (not with the
+same name as the file you will be generating) in the package you wish to generate code into:
+
+```
+//go:generate gorm-generate -dsn="..."
+```
