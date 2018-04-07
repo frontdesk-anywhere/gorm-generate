@@ -121,7 +121,7 @@ func formatName(name string) string {
 func goType(col *ColumnSchema) (string, string, error) {
 	switch col.DataType {
 	case "char", "varchar", "enum", "set", "text", "longtext", "mediumtext", "tinytext":
-		if col.IsNullable == "YES" {
+		if col.IsNullable {
 			return "sql.NullString", "database/sql", nil
 		} else {
 			return "string", "", nil
@@ -131,13 +131,13 @@ func goType(col *ColumnSchema) (string, string, error) {
 	case "date", "time", "datetime", "timestamp":
 		return "time.Time", "time", nil
 	case "bit", "tinyint", "smallint", "int", "mediumint", "bigint":
-		if col.IsNullable == "YES" {
+		if col.IsNullable {
 			return "sql.NullInt64", "database/sql", nil
 		} else {
 			return "int64", "", nil
 		}
 	case "float", "decimal", "double":
-		if col.IsNullable == "YES" {
+		if col.IsNullable {
 			return "sql.NullFloat64", "database/sql", nil
 		} else {
 			return "float64", "", nil
@@ -155,10 +155,13 @@ func goType(col *ColumnSchema) (string, string, error) {
 
 // gormTag takes a database column schema and converts it into a gorm tag.
 func gormTag(schema *ColumnSchema) string {
-	tagParts := []string{
-		"type:" + schema.DataType,
+	tagParts := []string{}
+	if schema.IsPrimaryKey {
+		tagParts = append(tagParts, "primary_key")
+	} else {
+		tagParts = append(tagParts, "type:" + schema.DataType)
 	}
-	if schema.IsNullable == "NO" {
+	if !schema.IsNullable {
 		tagParts = append(tagParts, "not null")
 	}
 	if schema.Extra.Valid && strings.Contains(schema.Extra.String, "auto_increment") {

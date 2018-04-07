@@ -2,6 +2,7 @@ package gormgen
 
 import (
 	"database/sql"
+	"fmt"
 	"net/url"
 	"strings"
 )
@@ -23,13 +24,22 @@ WHERE TABLE_SCHEMA = ?
 ORDER BY TABLE_NAME, ORDINAL_POSITION
 `
 
+const primaryKeysQuery = `SELECT k.COLUMN_NAME, k.TABLE_NAME
+FROM INFORMATION_SCHEMA.table_constraints t
+LEFT JOIN INFORMATION_SCHEMA.key_column_usage k
+USING(constraint_name,table_schema,table_name)
+WHERE t.constraint_type='PRIMARY KEY'
+	AND t.table_schema = ?;
+`
+
 // TableSchema contains the schemas of its columns in order.
 type TableSchema []*ColumnSchema
 
 type ColumnSchema struct {
 	TableName              string
 	ColumnName             string
-	IsNullable             string
+	IsNullable             bool
+	IsPrimaryKey           bool
 	DataType               string
 	CharacterMaximumLength sql.NullInt64
 	NumericPrecision       sql.NullInt64
@@ -57,6 +67,26 @@ func ReadDbSchema(dsn string) (map[string]TableSchema, error) {
 	}
 	defer conn.Close()
 
+	// Query the database for all table primary keys
+	keys, err := conn.Raw(primaryKeysQuery, dbName).Rows()
+	primaryKeys := make(map[string]bool)
+	if err != nil {
+		return nil, err
+	}
+	for keys.Next() {
+		colName := ""
+		tableName := ""
+		err = keys.Scan(
+			&colName,
+			&tableName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		primaryKeys[fmt.Sprintf("%v %v", tableName, colName)] = true
+	}
+
 	// Query the database for all table schemas.
 	rows, err := conn.Raw(tableSchemasQuery, dbName).Rows()
 	if err != nil {
@@ -66,11 +96,12 @@ func ReadDbSchema(dsn string) (map[string]TableSchema, error) {
 	// Parse the returned schemas.
 	tables := make(map[string]TableSchema)
 	for rows.Next() {
+		isNullable := ""
 		cs := ColumnSchema{}
-		err := rows.Scan(
+		err = rows.Scan(
 			&cs.TableName,
 			&cs.ColumnName,
-			&cs.IsNullable,
+			&isNullable,
 			&cs.DataType,
 			&cs.CharacterMaximumLength,
 			&cs.NumericPrecision,
@@ -83,6 +114,13 @@ func ReadDbSchema(dsn string) (map[string]TableSchema, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		cs.IsNullable = isNullable == "YES"
+
+		if _, ok := primaryKeys[fmt.Sprintf("%v %v", cs.TableName, cs.ColumnName)]; ok {
+			cs.IsPrimaryKey = true
+		}
+
 		_, ok := tables[cs.TableName]
 		if !ok {
 			tables[cs.TableName] = make(TableSchema, 0)
