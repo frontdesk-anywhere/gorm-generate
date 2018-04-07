@@ -7,23 +7,6 @@ import (
 	"strings"
 )
 
-const tableSchemasQuery = `SELECT
-    TABLE_NAME,
-    COLUMN_NAME,
-    IS_NULLABLE,
-    DATA_TYPE,
-    CHARACTER_MAXIMUM_LENGTH,
-    NUMERIC_PRECISION,
-    NUMERIC_SCALE,
-    COLUMN_TYPE,
-    COLUMN_KEY,
-    EXTRA,
-    COLUMN_DEFAULT
-FROM COLUMNS
-WHERE TABLE_SCHEMA = ?
-ORDER BY TABLE_NAME, ORDINAL_POSITION
-`
-
 const gormStructsTemplate = `package {{.StructsPackage}}
 
 import ({{range .Imports}}
@@ -50,7 +33,7 @@ type StructsContext struct {
 	Imports        map[string]string
 	DbSchema       map[string]TableContext
 }
-type TableContext map[string]*ColumnContext
+type TableContext []*ColumnContext
 type ColumnContext struct {
 	DbColumnName string
 	GoColumnName string
@@ -82,9 +65,9 @@ func (g *Generator) CreateTemplateContext(dbSchema map[string]TableSchema) (*Str
 
 			_, ok := dbContext[goTableName]
 			if !ok {
-				dbContext[goTableName] = make(TableContext)
+				dbContext[goTableName] = make(TableContext, 0)
 			}
-			dbContext[goTableName][goColumnName] = &colContext
+			dbContext[goTableName] = append(dbContext[goTableName], &colContext)
 		}
 	}
 	absOutputPath, err := filepath.Abs(g.OutputPath)

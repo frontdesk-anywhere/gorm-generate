@@ -6,7 +6,25 @@ import (
 	"strings"
 )
 
-type TableSchema map[string]*ColumnSchema
+const tableSchemasQuery = `SELECT
+    TABLE_NAME,
+    COLUMN_NAME,
+    IS_NULLABLE,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    NUMERIC_PRECISION,
+    NUMERIC_SCALE,
+    COLUMN_TYPE,
+    COLUMN_KEY,
+    EXTRA,
+    COLUMN_DEFAULT
+FROM COLUMNS
+WHERE TABLE_SCHEMA = ?
+ORDER BY TABLE_NAME, ORDINAL_POSITION
+`
+
+// TableSchema contains the schemas of its columns in order.
+type TableSchema []*ColumnSchema
 
 type ColumnSchema struct {
 	TableName              string
@@ -67,9 +85,9 @@ func ReadDbSchema(dsn string) (map[string]TableSchema, error) {
 		}
 		_, ok := tables[cs.TableName]
 		if !ok {
-			tables[cs.TableName] = make(TableSchema)
+			tables[cs.TableName] = make(TableSchema, 0)
 		}
-		tables[cs.TableName][cs.ColumnName] = &cs
+		tables[cs.TableName] = append(tables[cs.TableName], &cs)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
