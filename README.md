@@ -14,7 +14,7 @@ go install github.com/frontdesk-anywhere/gorm-generate
 # Generate gorm structs and registry.
 cd ${dir_where_you_want_to_generate_structs}
 gorm-generate \
-    -dsn="mysql://root:root@tcp(127.0.0.1:3306)?your_database_name_here/?charset=utf8"
+    -dsn="mysql://root:root@tcp(127.0.0.1:3306)?your_database_name_here/?charset=utf8" structs
 
 # Check the results.
 cat generated_structs.go
