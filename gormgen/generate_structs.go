@@ -2,6 +2,7 @@ package gormgen
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -20,7 +21,7 @@ type {{$tableName}} struct { {{range $columnName,$columnSchema := $tableSchema}}
 
 const gormRegistryTemplate = `package {{.StructsPackage}}
 
-// AllModels returns a list of empty GORM DB models available in the db_account_master database.
+// AllModels returns a list of empty GORM DB models available in the {{.DbName}} database.
 func AllModels() []interface{} {
 	return []interface{} { {{range $tableName,$tableSchema := .DbSchema}}
 		&{{$tableName}} { },{{end}}
@@ -28,12 +29,18 @@ func AllModels() []interface{} {
 }
 `
 
+// StructsContext struct
 type StructsContext struct {
 	StructsPackage string
 	Imports        map[string]string
 	DbSchema       map[string]TableContext
+	DbName         string
 }
+
+// TableContext struct
 type TableContext []*ColumnContext
+
+// ColumnContext struct
 type ColumnContext struct {
 	DbColumnName string
 	GoColumnName string
@@ -41,9 +48,17 @@ type ColumnContext struct {
 	GormTag      string
 }
 
+// CreateTemplateContext creates context for template
 func (g *Generator) CreateTemplateContext(dbSchema map[string]TableSchema) (*StructsContext, error) {
 	var dbContext = make(map[string]TableContext)
 	var importMap = make(map[string]string)
+
+	dnsParsed, err := url.Parse(g.DbDsn)
+	if err != nil {
+		return nil, err
+	}
+	dbName := strings.Replace(dnsParsed.Path, "/", "", -1)
+
 	for _, tableSchema := range dbSchema {
 		for _, columnSchema := range tableSchema {
 			goType, requiredImport, err := goType(columnSchema)
@@ -78,9 +93,11 @@ func (g *Generator) CreateTemplateContext(dbSchema map[string]TableSchema) (*Str
 		StructsPackage: path.Base(absOutputPath),
 		Imports:        importMap,
 		DbSchema:       dbContext,
+		DbName:         dbName,
 	}, nil
 }
 
+// GenerateGormStructs generates gorm structs
 func (g *Generator) GenerateGormStructs() error {
 	// Read the schemas of the tables in the provided database.
 	dbSchema, err := ReadDbSchema(g.DbDsn)
@@ -159,7 +176,7 @@ func gormTag(schema *ColumnSchema) string {
 	if schema.IsPrimaryKey {
 		tagParts = append(tagParts, "primary_key")
 	} else {
-		tagParts = append(tagParts, "type:" + schema.DataType)
+		tagParts = append(tagParts, "type:"+schema.DataType)
 	}
 	if !schema.IsNullable {
 		tagParts = append(tagParts, "not null")
